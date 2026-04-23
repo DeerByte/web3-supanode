@@ -1,11 +1,15 @@
 let apiURL = process.env.API_URL;
 let apiKey = process.env.API_KEY;
 // TODO change to port 80 for deployment
-let port = 8080;
+let port = process.env.PORT;
 
 const express = require("express");
 const supa = require("@supabase/supabase-js");
+const cors = require("cors");
 const app = express();
+
+//TODO set to OnRender origin for production.
+app.use(cors());
 
 const supabase = supa.createClient(apiURL, apiKey);
 
@@ -135,19 +139,27 @@ app.get("/api/artists/averages/:artistId", async (req, resp) => {
       avg_popularity: totals.popularity / numSongs,
       numSongs: numSongs
     };
-
-    resp.json(dataObj);
-  }
-  if (error) {
-    console.log(error);
+    if (error) {
+      resp.status(500);
+      console.log(error);
+    } else {
+      resp.json(dataObj);
+    }
   }
 });
 
+// Return all genre_ids and genre_names
 app.get("/api/genres", async (req, resp) => {
   const { data, error } = await supabase.from("genres").select();
-  resp.send(data);
+  if (error) {
+    resp.status(500);
+    console.log(error);
+  } else {
+    resp.send(data);
+  }
 });
 
+// Return all songs and associated data
 app.get("/api/songs", async (req, resp) => {
   const { data, error } = await supabase
     .from("songs")
@@ -160,11 +172,18 @@ app.get("/api/songs", async (req, resp) => {
       referenceTable: "artists",
       ascending: true
     });
-  resp.send(data);
+
+  if (error) {
+    resp.status(500);
+    console.log(error);
+  } else {
+    resp.send(data);
+  }
 });
 
 // referenced https://stackoverflow.com/questions/11258077/how-to-find-index-of-an-object-by-key-and-value-in-an-javascript-array
-// Return all songs, sorted by provided field
+
+// Return all songs, sorted by provided column via :field
 app.get("/api/songs/sort/:field", async (req, resp) => {
   // return all songs sorted by order field
   const validFields = orderValues.map((o) => {
@@ -202,6 +221,7 @@ app.get("/api/songs/sort/:field", async (req, resp) => {
       // use value for given param
       .order(orderValues[sortByIndex].value, orderParamObj);
     if (error) {
+      resp.status(500);
       console.log(error);
     }
     resp.send(data);
@@ -218,8 +238,12 @@ app.get("/api/songs/:songId", async (req, resp) => {
        acousticness, speechiness, popularity`
     )
     .eq("song_id", req.params.songId);
-  console.log(data);
-  resp.send(data);
+  if (error) {
+    resp.status(500);
+    console.log(error);
+  } else {
+    resp.send(data);
+  }
 });
 
 app.get("/api/songs/search/begin/:substr", async (req, resp) => {
@@ -267,10 +291,10 @@ app.get("/api/songs/search/year/:substr", async (req, resp) => {
   // return songs where substring matches year.
   const date = new Date();
 
-  if (req.params.substr < 0 || req.params.substr > date.getFullYear()) {
+  if (req.params.substr < 1 || req.params.substr > date.getFullYear()) {
     resp.json(
       jsonMessage(
-        `Invalid year. Enter a year between 0 and ${date.getFullYear()}`
+        `Invalid year. Enter a year between 1 and ${date.getFullYear()}`
       )
     );
   } else {
@@ -295,6 +319,7 @@ app.get("/api/songs/search/year/:substr", async (req, resp) => {
   }
 });
 
+// Return all songs matching artist_id
 app.get("/api/songs/artist/:id", async (req, resp) => {
   const { data, error } = await supabase
     .from("songs")
@@ -315,8 +340,8 @@ app.get("/api/songs/artist/:id", async (req, resp) => {
   }
 });
 
-app.get("/api/genre/:id", async (req, resp) => {
-  // return all songs from genre with matching id
+// return all songs matching genre_id
+app.get("/api/songs/genre/:id", async (req, resp) => {
   if (req.params.id < 0) {
     resp.json(jsonMessage("Invalid genre_id. Enter value > 0"));
   } else {
@@ -341,6 +366,8 @@ app.get("/api/genre/:id", async (req, resp) => {
   }
 });
 
+// return all the songs for specified playlist_id
+// return fields: song_id, title, artist, name, genre name, year
 app.get("/api/playlists/:id", async (req, resp) => {
   const listId = req.params.id;
 
@@ -365,8 +392,6 @@ app.get("/api/playlists/:id", async (req, resp) => {
       resp.json(jsonMessage("No songs found for playlist_id " + req.params.id));
     }
   }
-  // return all the songs for specified playlist
-  // return fields: song_id, title, artist, name, genre name, year
 });
 
 // For all moods:
@@ -390,6 +415,7 @@ app.get("/api/mood/dancing/:value", async (req, resp) => {
     .limit(numSongs);
   if (error) {
     resp.status(500);
+
     console.log(error);
   }
   resp.send(data);
