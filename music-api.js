@@ -4,7 +4,6 @@ const express = require("express");
 const app = express();
 
 //
-// TODO: Test all get routes
 //
 const fetcher = require("./scripts/data-provider.js");
 const {
@@ -24,7 +23,8 @@ const orderValues = [
   { key: "duration", value: "duration" }
 ];
 
-//Return all artists, sorted by ascending name.
+// Return all artists, sorted by ascending name.
+// Returns JSON
 app.get("/api/artists", async (req, resp, next) => {
   const { data, error } = await fetcher.fetchArtists();
 
@@ -39,20 +39,24 @@ app.get("/api/artists", async (req, resp, next) => {
 // Search by artist_id and return artist info, including info linked by foreign keys.
 
 app.get("/api/artists/:id", async (req, resp, next) => {
-  // Query supabase for artist given artist_id
+  // Parse Int of given artistId
   const artistId = parseInt(req.params.id);
 
+  // If artistId is NaN, or < 1, return HTTP 400
   if (isNaN(req.params.id)) {
     next({ status: 400, message: "Bad Request: Artist_Id must be a number." });
   } else if (artistId < 1) {
     next({ status: 400, message: "Bad Request: Artist_Id must be > 0." });
   } else {
+    // Otherwise, attempt to fetch and return artists.
     try {
-      const { data, error } = await fetcher.fetchArtistById(parseInt(artistId));
+      const { data, error } = await fetcher.fetchArtistById(artistId);
+      //IF error while fetching, return HTTP 500
       if (error) {
         console.error(error);
         next(error);
       } else {
+        // Otherwise, return HTTP 200 with data.
         resp.json({ status: 200, data });
       }
     } catch (error) {
@@ -120,7 +124,6 @@ app.get("/api/songs", async (req, resp) => {
 app.get("/api/songs/sort/:field", async (req, resp, next) => {
   // return all songs sorted by order field
   const validFields = orderValues.map((o) => {
-    console.log(`o.key = ${o.key}`);
     return o.key;
   });
 
@@ -150,193 +153,185 @@ app.get("/api/songs/sort/:field", async (req, resp, next) => {
         orderParamObj = { ascending: true };
         break;
     }
-
+    // Fetch ordered songs
     const { data, error } = await fetcher.fetchOrderedSongs(
       orderValues[sortByIndex].value,
       orderParamObj
     );
 
-    // const { data, error } = await supabase
-    //   .from("songs")
-    //   .select(
-    //     `song_id, title, artists(artist_id, artist_name), genres(genre_id, genre_name),
-    //     year, bpm, energy, danceability, loudness, liveness, valence, duration,
-    //     acousticness, speechiness, popularity`
-    //   )
-    //   // use value for given param
-    //   .order(orderValues[sortByIndex].value, orderParamObj);
-
+    // If error server error, return HTTP 500
     if (error) {
       console.log(error);
       next({ status: 500, message: "Internal Server Error" });
     } else {
+      // Else return HTTP 200 with data
       resp.json({ status: 200, data });
     }
   }
 });
 
+// Return song referenced by songId
 app.get("/api/songs/:songId", async (req, resp, next) => {
   const songId = req.params.songId;
 
+  // SongId must be a number, and songId > 0. If not, return HTTP 400 Bad Request.
   if (isNaN(songId)) {
     next({ status: 400, message: "Bad Request: songId must be a number" });
   } else if (songId < 0) {
     next({ status: 400, message: "Bad Request: songId must be > 0" });
   } else {
+    //Otherwise, attempt to fetch song.
     const { data, error } = await fetcher.fetchSongById(parseInt(songId));
     if (error) {
+      //If internal error, return HTTP 500
       console.log(error);
       next({ status: 500, message: "Internal Server Error" });
     } else {
+      // Else return HTTP 200 with data
       resp.json({ status: 200, data });
     }
   }
-  //return song using specified song_id
-
-  // await supabase
-  //   .from("songs")
-  //   .select(
-  //     `song_id, title, artists(artist_id, artist_name), genres(genre_id, genre_name),
-  //      year, bpm, energy, danceability, loudness, liveness, valence, duration,
-  //      acousticness, speechiness, popularity`
-  //   )
-  //   .eq("song_id", req.params.songId);
 });
 
+// Fetch then return songs beginning with specified substring.
 app.get("/api/songs/search/begin/:substr", async (req, resp, next) => {
-  // return songs where titles beginning with specified substring
+  // fetch songs where titles beginning with specified substring
   const { data, error } = await fetcher.fetchSongsBeginningWith(
     req.params.substr
   );
-  // supabase
-  //   .from("songs")
-  //   .select(
-  //     `song_id, title, artists(artist_id, artist_name), genres(genre_id, genre_name),
-  //      year, bpm, popularity`
-  //   )
-  //   .ilike("song_id", `${req.params.substr}%`)
-  //   .order("title", { ascending: true });
 
+  // If there is an error with fetch, return HTTP 500.
   if (error) {
     console.log(error);
     next({ status: 500, message: "Internal Server Error" });
+
+    // Else, return HTTP 200 with json data.
   } else {
     resp.json({ status: 200, data });
   }
 });
 
+// Fetch and return songs in json where the provided substring matches
+//  anywhere in the song title.
 app.get("/api/songs/search/any/:substr", async (req, resp, next) => {
-  // return songs where substring is anywhere in title
-
+  // Fetch songs
   const { data, error } = await fetcher.fetchSongsMatching(req.params.substr);
 
+  // If there is an error with fetch, return HTTP 500.
   if (error) {
     console.error(error);
     next({ status: 500, message: "Internal Server Error" });
+
+    // Else, return HTTP 200 with json data.
   } else {
     resp.json({ status: 200, data });
   }
 });
 
+// Fetch and return songs in json where substring matches the song.year.
+// The year must be a number, > 0, and not after the current year.
 app.get("/api/songs/search/year/:substr", async (req, resp, next) => {
-  // return songs where substring matches year.
   const date = new Date();
 
+  // If the year is not valid,
   if (
     isNaN(req.params.substr) ||
     req.params.substr < 1 ||
     req.params.substr > date.getFullYear()
   ) {
+    // Return HTTP 400 and explain in message.
     next({
       status: 400,
       message: `Bad Request: Date must be a number > 1 and < ${date.getFullYear()}`
     });
+    //Otherwise, fetch songs with matching year
   } else {
     const { data, error } = await fetcher.fetchSongsFromYear(
       parseInt(req.params.substr)
     );
-
-    // supabase
-    //   .from("songs")
-    //   .select(
-    //     `song_id, title, artists(artist_id, artist_name),
-    //     genres(genre_id, genre_name),
-    //    year, bpm, energy, danceability, loudness, liveness,
-    //    valence, duration, acousticness, speechiness, popularity`
-    //   )
-    //   .eq("year", parseInt(req.params.substr))
-    //   .order("year", { descending: true });
+    //If fetch errors, return HTTP 500
     if (error) {
       console.error(error);
       next({ status: 500, message: "Internal Server Error" });
+
+      // Otherwise, return HTTP 200 and json data.
     } else {
       resp.json({ status: 200, data });
     }
   }
 });
 
-// Return all songs matching artist_id
+// Fetch and return all songs matching artist_id.
+// ArtistId must be a number
 app.get("/api/songs/artist/:id", async (req, resp, next) => {
   const artistId = req.params.id;
 
+  //  If artistId is NaN, return HTTP 400.
   if (isNaN(artistId)) {
     next({ status: 400, message: "Bad Request: artist_id must be a number" });
   } else {
+    // Otherwise, fetch songs by artistId.
     const { data, error } = await fetcher.fetchSongsByArtistId(
       parseInt(artistId)
     );
-    // TODO: Add http 400 for string input
+
+    // If there is an error during fetch, return HTTP 500
     if (error) {
       console.error(error);
       next({ status: 500, message: "Internal Server Error" });
+      // Otherwise, return HTTP 200 with data via json
     } else resp.json({ status: 200, data });
   }
 });
 
-// return all songs matching genre_id
+// Fetch and return all songs matching genre_id.
+// Returns json. If there are no matching genreId, returns empty array.
+// genreId must be a number and greater than 0.
 app.get("/api/songs/genre/:id", async (req, resp, next) => {
+  //  If genreId is NaN or <0, return HTTP 400
   if (isNaN(req.params.id) || req.params.id < 0) {
     next({
       status: 400,
       message: "Bad Request: Genre_Id must be a number > 0"
     });
+    //Otherwise, attempt to fetch songs
   } else {
     const { data, error } = await fetcher.fetchSongsByGenre(req.params.id);
-
+    // If there is an error fetching songs, return HTTP 500.
     if (error) {
       console.error(error);
       next({ status: 500, message: "Internal Server Error" });
+      // Otherwise, return HTTP 200 with song data.
     } else {
       resp.json({ status: 200, data });
     }
   }
 });
 
-// return all the songs for specified playlist_id
+// Fetch and return all the songs for specified playlist_id
 // return fields: song_id, title, artist, name, genre name, year
+//  returns JSON
+//  playlist ID must be a number, and > 0.
 app.get("/api/playlists/:id", async (req, resp, next) => {
   const listId = req.params.id;
 
+  //  If playlist ID is NaN, or is < 1, return HTTP 400
   if (isNaN(listId) || listId < 1) {
     next({
       status: 400,
       message: "Bad Request: Playlist_Id must be a number > 0"
     });
+    // / Otherwise, attempt to fetch songs matching playlistId
   } else {
     const { data, error } = await fetcher.fetchSongsByPlaylistId(
       parseInt(listId)
     );
-    // const { data, error } = await supabase
-    //   .from("songs")
-    //   .select(
-    //     `playlists!inner(playlist_id), song_id, title, artists!inner(artist_name), genres!inner(genre_name),
-    //    year`
-    //   )
-    //   //playlist id is on separate table.
-    //   .eq("playlists.playlist_id", req.params.id);
+
+    // If error occurs when fetching, return HTTP 500.
     if (error) {
       console.log(error);
       next({ status: 500, message: "Internal Server Error" });
+      // Otherwise, return HTTP 200 with data.
     } else {
       resp.json({ status: 200, data });
     }
@@ -371,15 +366,6 @@ app.get("/api/mood/happy/:value", async (req, resp, next) => {
     numSongs = 20;
   }
   const { data, error } = await fetcher.fetchTopSongsByHappiness(numSongs);
-
-  // supabase
-  //   .from("songs")
-  //   .select(
-  //     `song_id, title, artists!inner(artist_id, artist_name), genres!inner(genre_id, genre_name),
-  //      year`
-  //   )
-  //   .order("valence", { ascending: false })
-  //   .limit(numSongs);
 
   if (error) {
     console.log(error);
