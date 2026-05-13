@@ -90,9 +90,9 @@ A database was constructed on SupaBase using provided .csv files. The assignment
 
 [/api/mood/dancing/500](https://web3-supanode.onrender.com/api/mood/dancing/500)
 
-[/api/mood/dancing/ksdjf](https://web3-supanode.onrender.com/api/mood/happy/8)
+[/api/mood/dancing/ksdjf](https://web3-supanode.onrender.com/api/mood/dancing/ksdjf)
 
-[/api/mood/happy/8](https://web3-supanode.onrender.com)
+[/api/mood/happy/8](https://web3-supanode.onrender.com/api/mood/happy/8)
 
 [/api/mood/happy](https://web3-supanode.onrender.com/api/mood/happy)
 
