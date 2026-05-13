@@ -457,12 +457,17 @@ app.get("/api/mood/studying/:value", async (req, resp, next) => {
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, resp, next) => {
+  if (resp.headersSent) {
+    return next(err);
+  }
   const errorMsg = err.message || err.details || "Internal Server Error";
   console.error(`[${err.status}] ${req.method} ${req.url} — ${errorMsg}`);
   // Disabled. MDN reference says status should have no effect on page text.
   // However, this API intentionally adds status as it is lost in the header.
   // eslint-disable-next-line no-undef
-  resp.status(err.status || 500).json({ status: status, message: errorMsg });
+  resp
+    .status(err.status || 500)
+    .json({ status: err.status, message: errorMsg });
 });
 
 // Original error handling function.
