@@ -1,7 +1,12 @@
 let port = process.env.PORT;
-
+const cors = require("cors");
 const express = require("express");
 const app = express();
+app.use(
+  cors({
+    origin: ["https://web3-react.onrender.com"]
+  })
+);
 
 //
 //
