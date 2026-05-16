@@ -182,7 +182,7 @@ app.get("/api/songs/:songId", async (req, resp, next) => {
   // SongId must be a number, and songId > 0. If not, return HTTP 400 Bad Request.
   if (isNaN(songId)) {
     next({ status: 400, message: "Bad Request: songId must be a number" });
-  } else if (songId < 0) {
+  } else if (songId < 1) {
     next({ status: 400, message: "Bad Request: songId must be > 0" });
   } else {
     //Otherwise, attempt to fetch song.
@@ -313,6 +313,18 @@ app.get("/api/songs/genre/:id", async (req, resp, next) => {
   }
 });
 
+// Fetch and return all playlists.
+// Returns playlist_id, playlist_name.
+app.get("/api/playlists", async (req, resp, next) => {
+  const { data, error } = await fetcher.fetchAllPlaylists();
+
+  if (error) {
+    next(error);
+  } else {
+    resp.json(data);
+  }
+});
+
 // Fetch and return all the songs for specified playlist_id
 // return fields: song_id, title, artist, name, genre name, year
 //  returns JSON
@@ -367,7 +379,7 @@ app.get("/api/mood/happy/:value", async (req, resp, next) => {
   // descending order
 
   let numSongs = parseInt(req.params.value);
-  if (numSongs < 1 || numSongs > 20) {
+  if (numSongs < 1 || numSongs > 20 || isNaN(req.params.value)) {
     numSongs = 20;
   }
   const { data, error } = await fetcher.fetchTopSongsByHappiness(numSongs);
@@ -422,27 +434,92 @@ app.get("/api/mood/studying/:value", async (req, resp, next) => {
   }
 
   //Modify to not use view. Instead, fetch all songs and calculate totals, then sort by totals
-  try {
-    const { data, error } = await fetcher.fetchSongs();
-    // console.log(data);
-    if (error) {
-      console.log(error);
-      next({ status: 500, message: "Internal Server Error" });
-    } else {
-      resp.json({
-        status: 200,
-        data: calculateStudyValues(data).slice(0, numSongs)
-      });
-    }
-  } catch (error) {
-    console.error(error);
+  const { data, error } = await fetcher.fetchSongs();
+  // console.log(data);
+  if (error) {
+    console.log(error);
     next({ status: 500, message: "Internal Server Error" });
+  } else {
+    resp.json({
+      status: 200,
+      data: calculateStudyValues(data).slice(0, numSongs)
+    });
+  }
+});
+
+app.post("/api/playlist/:name", async (req, resp, next) => {
+  const response = await fetcher.createPlaylist(req.params.name);
+  if (response.status == 201) {
+    resp.json({
+      status: response.status,
+      message: response.statusText
+    });
+  } else {
+    console.error(response);
+    next({ status: response.status, message: response.statusText });
+  }
+});
+
+app.delete("/api/playlist/:id", async (req, resp, next) => {
+  const response = await fetcher.deletePlaylist(req.params.id);
+
+  if (response.status == 200) {
+    resp.json({ status: response.status, message: response.statusText });
+  } else {
+    next({ status: response.status, message: response.statusText });
+  }
+});
+
+app.post(
+  "/api/playlist/add-song/:playlistId/:songId",
+  async (req, resp, next) => {
+    const songId = parseInt(req.params.songId);
+    console.log(`SongId = ${songId}`);
+    const playlistId = parseInt(req.params.playlistId);
+    console.log(`PlaylistId = ${playlistId}`);
+    const response = await fetcher.addSongToPlaylist(playlistId, songId);
+    console.log(`resp = ${response}`);
+
+    if (response.status == 201) {
+      resp.json({ status: response.status, message: response.statusText });
+    } else {
+      next({ status: response.status, message: response.statusText });
+    }
+  }
+);
+
+app.delete(
+  "/api/playlist/remove-song/:playlistId/:id",
+  async (req, resp, next) => {
+    const songId = parseInt(req.params.songId);
+    const playlistId = parseInt(req.params.playlistId);
+    const response = await fetcher.removeSongFromPlaylist(playlistId, songId);
+
+    if (response.status == 204) {
+      resp.json({ status: response.status, message: response.statusText });
+    } else {
+      console.error(response);
+      next({ status: response.status, message: response.statusText });
+    }
+  }
+);
+
+app.put("/api/playlist/:playlistId/:playlistName", async (req, resp, next) => {
+  const playlistId = parseInt(req.params.playlistId);
+  const newName = req.params.playlistName;
+  const response = await fetcher.updatePlaylistName(playlistId, newName);
+
+  if (response.status == 204) {
+    resp.json({ status: response.status, message: response.statusText });
+  } else {
+    console.error(response);
+    next({ status: response.status, message: response.statusText });
   }
 });
 
 // !!! The following function was AI Generated using OpenAI Sonnet 4.6 !!!
 
-// This, and the error-handling that invokes it, was not the product of my work.
+// This, and the error-handling that invokes it, was not solely the product of my work.
 // It has been modified to include an http status, as resp.status does not send the
 // status code in the headers.
 

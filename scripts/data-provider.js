@@ -143,21 +143,17 @@ const fetchSongsFromYear = async (year) => {
 
 // Fetch songs with matching artistId.
 const fetchSongsByArtistId = async (artistId) => {
-  try {
-    const { data, error } = await supabase
-      .from("songs")
-      .select(
-        `song_id, title, artists!inner(artist_id, artist_name), genres(genre_id, genre_name),
+  const { data, error } = await supabase
+    .from("songs")
+    .select(
+      `song_id, title, artists!inner(artist_id, artist_name), genres(genre_id, genre_name),
        year, bpm, energy, danceability, loudness, liveness, valence, duration, 
        acousticness, speechiness, popularity`
-      )
-      .eq("artist_id", artistId)
-      .order("year", { descending: true });
+    )
+    .eq("artist_id", artistId)
+    .order("year", { descending: true });
 
-    return { data, error };
-  } catch (error) {
-    console.error(error);
-  }
+  return { data, error };
 };
 
 // Fetch songs with matching genreId
@@ -218,6 +214,63 @@ const fetchTopSongsByHappiness = async (numSongs) => {
   return { data, error };
 };
 
+const fetchAllPlaylists = async () => {
+  const { data, error } = await supabase.from("playlist_names").select();
+  return { data, error };
+};
+
+// Insert a new playlist_name into playlist_names, then return created record
+// SERIAL primary key handles playlist_id
+// Referenced: https://supabase.com/docs/reference/javascript/insert
+const createPlaylist = async (name) => {
+  const response = await supabase
+    .from("playlist_names")
+    .insert({ playlist_name: name });
+  return response;
+};
+
+// Delete playlist row from playlist_names table. Return deleted record.
+// Cascade on delete set within Supabase, so deleting a playlist_name
+//  will remove any record in playlist referencing that playlist_id.
+const deletePlaylist = async (playlistId) => {
+  const response = await supabase
+    .from("playlist_names")
+    .delete()
+    .eq("playlist_id", playlistId)
+    .select();
+
+  return response;
+};
+
+// Add song to playlist using playlistId and songId.
+const addSongToPlaylist = async (playlistId, songId) => {
+  const response = await supabase
+    .from("playlists")
+    .insert({ playlist_id: playlistId, song_id: songId });
+  console.log(response);
+  return response;
+};
+
+// Referenced https://supabase.com/docs/reference/javascript/delete
+// Delete song from playlists where playlistId=playlistId && id==id
+const removeSongFromPlaylist = async (playlistId, id) => {
+  const response = await supabase
+    .from("playlists")
+    .delete()
+    .eq("playlist_id", playlistId)
+    .eq("id", id);
+
+  return response;
+};
+
+const updatePlaylistName = async (playlistId, name) => {
+  const response = await supabase
+    .from("playlist_names")
+    .update({ playlist_name: name })
+    .eq("playlist_id", playlistId);
+  return response;
+};
+
 module.exports = {
   fetchArtists,
   fetchArtistById,
@@ -233,5 +286,11 @@ module.exports = {
   fetchTopSongsByDanceability,
   fetchTopSongsByHappiness,
   fetchSongsMatching,
-  fetchSongsFromYear
+  fetchSongsFromYear,
+  fetchAllPlaylists,
+  createPlaylist,
+  deletePlaylist,
+  addSongToPlaylist,
+  removeSongFromPlaylist,
+  updatePlaylistName
 };
